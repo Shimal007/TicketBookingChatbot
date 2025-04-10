@@ -1,0 +1,39 @@
+.chatbot-icon {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background-color: #4caf50;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s, transform 0.3s;
+    z-index: 1000;
+  }
+  
+  .chatbot-icon:hover {
+    background-color: #388e3c;
+    transform: scale(1.1);
+  }
+  
+  .chatbot-icon.open {
+    background-color: #ff5722;
+  }
+  
+  .chatbot-icon.open:hover {
+    background-color: #e64a19;
+  }
+  
+  .chat-icon {
+    color: white;
+  }
+  
+  .close-icon {
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+  }
