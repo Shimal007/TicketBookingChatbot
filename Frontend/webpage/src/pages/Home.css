@@ -1,0 +1,440 @@
+/* General Styles */
+.main {
+    font-family: Arial, sans-serif;
+    color: #333;
+  }
+  
+  /* Hero Section */
+  .hero {
+    position: relative;
+    height: 500px;
+    background: url('https://wallpapers.com/images/hd/chennai-egmore-museum-qxx3nhjcvl5nckgw.jpg') no-repeat center center;
+    background-size: cover;
+  }
+  
+  .hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .hero-content {
+    text-align: center;
+  }
+  
+  .hero-text {
+    color: white;
+  }
+  
+  .hero-title {
+    font-size: 48px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  }
+  
+  .hero-subtitle {
+    font-size: 24px;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  }
+  
+  .btn {
+    padding: 12px 24px;
+    font-size: 18px;
+    font-weight: bold;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .btn-primary {
+    background-color: #f5a623;
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background-color: #d4891e;
+  }
+  
+  /* Quick Info Section */
+  .quick-info {
+    padding: 40px 0;
+    background-color: #f9f9f9;
+  }
+  
+  .quick-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    text-align: center;
+  }
+  
+  .info-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  
+  .info-icon {
+    color: #4caf50;
+  }
+  
+  .info-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  
+  .info-text {
+    font-size: 16px;
+    color: #666;
+  }
+  
+  /* Section Styles */
+  .section {
+    padding: 60px 0;
+  }
+  
+  .section-title {
+    font-size: 32px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  
+  /* About Section */
+  .about-content {
+    text-align: center;
+  }
+  
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 40px;
+  }
+  
+  .stat-item {
+    text-align: center;
+  }
+  
+  .stat-icon-wrapper {
+    background-color: #4caf50;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto 10px;
+  }
+  
+  .stat-icon {
+    color: white;
+  }
+  
+  .stat-item h3 {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  
+  .stat-item p {
+    font-size: 16px;
+    color: #666;
+  }
+  
+  /* Galleries Section */
+  .galleries-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  
+  .gallery-card {
+    background-color: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .gallery-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+  }
+  
+  .gallery-content {
+    padding: 20px;
+  }
+  
+  .gallery-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  
+  .gallery-description {
+    font-size: 16px;
+    color: #666;
+  }
+  
+  /* Collections Section */
+  .collections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+  }
+  
+  .collection-card {
+    text-align: center;
+    padding: 20px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .collection-icon-wrapper {
+    background-color: #4caf50;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto 10px;
+  }
+  
+  .collection-icon {
+    color: white;
+  }
+  
+  .collection-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  
+  .collection-card .gallery-description {
+    font-size: 14px;
+  }
+  
+  /* Featured Section */
+  .featured-section {
+    background-color: #f9f9f9;
+  }
+  
+  .featured-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  
+  .featured-content h2 {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  
+  .featured-subtitle {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+  }
+  
+  .featured-content p {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 20px;
+  }
+  
+  .featured-info {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .featured-info-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .featured-image-wrapper {
+    width: 100%;
+  }
+  
+  .featured-image {
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+    border-radius: 10px;
+  }
+  /* Map Section Styles */
+.map-section {
+    background-color: #f9f9f9;
+  }
+  
+  .map-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 30px;
+  }
+  
+  .map-wrapper {
+    width: 100%;
+    height: 450px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .map-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .map-info-card {
+    background-color: white;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    height: 100%;
+  }
+  
+  .map-info-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .map-info-icon {
+    color: #4caf50;
+  }
+  
+  .map-info-header h3 {
+    font-size: 22px;
+    font-weight: bold;
+    margin: 0;
+  }
+  
+  .map-info-content p {
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #666;
+    line-height: 1.5;
+  }
+  
+  .map-info-content .btn {
+    margin-top: 15px;
+  }
+  
+  /* Responsive adjustments for map section */
+  @media (max-width: 768px) {
+    .map-content {
+      grid-template-columns: 1fr;
+    }
+    
+    .map-wrapper {
+      height: 350px;
+    }
+  }
+  .divider-line {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+  }
+  
+  .line {
+    color: #ccc;
+    font-size: 18px;
+    letter-spacing: 1px;
+    width: 100%;
+    text-align: center;
+  }
+  
+  /* Responsive adjustments for map section */
+  @media (max-width: 768px) {
+    .map-content {
+      grid-template-columns: 1fr;
+    }
+    
+    .map-wrapper {
+      height: 350px;
+    }
+  }
+  /* Footer */
+  .footer {
+    background-color: #333;
+    color: white;
+    padding: 40px 0;
+  }
+  
+  .footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .footer-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  
+  .footer-text {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  
+  .footer-bottom {
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .footer-bottom p {
+    font-size: 14px;
+  }
+  
+  /* Responsive Adjustments */
+  @media (max-width: 768px) {
+    .hero {
+      height: 400px;
+    }
+  
+    .hero-title {
+      font-size: 36px;
+    }
+  
+    .hero-subtitle {
+      font-size: 20px;
+    }
+  
+    .featured-grid {
+      grid-template-columns: 1fr;
+    }
+  
+    .featured-image {
+      height: 200px;
+    }
+  }
