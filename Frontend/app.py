@@ -18,16 +18,21 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pymongo import MongoClient
 import re
-from datetime import datetime  # Import datetime for timestamp
+from datetime import datetime
 from dotenv import load_dotenv
+
+# Load environment variables
 load_dotenv()
+
+# Initialize Flask app
 app = Flask(__name__)
-app.secret_key = "super_secret_key"  # For session management
+app.secret_key = os.getenv("SECRET_KEY", "super_secret_key")
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 
+# Environment variables
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ORS_API_KEY = os.getenv("ORS_API_KEY")
@@ -37,42 +42,46 @@ EMAIL_USERNAME = os.getenv("EMAIL_USERNAME")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 MONGO_URI = os.getenv("MONGO_URI")
 
-
-# 🔹 API Keys (Replace with your keys)
+# Set API keys
 os.environ["LANGCHAIN_API_KEY"] = LANGCHAIN_API_KEY
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-# 🔹 Email Configuration
+# Email Configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
-# 🔹 MongoDB Configuration
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://shimalakmald23aim:shimal007@visitorsdata.aw8yfkt.mongodb.net/")
+# MongoDB Configuration
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client["museum_db"]
 bookings_collection = db["bookings"]
 
-# 🔹 Razorpay Client
+# Razorpay Client
 client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
 
-# 🔹 Language Models
+# Language Models
 llm = ChatGroq(model="llama3-8b-8192")
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
 vector_store = Chroma(embedding_function=embeddings)
 
-# 🔹 Museum Coordinates
+# Museum Coordinates
 MUSEUM_COORDINATES = {"lon": 80.2574, "lat": 13.0674}
 
-
+# Session storage
 user_sessions = {}
 pending_payments = {}
 
+# Ticket pricing
+TICKET_PRICE_INR = 50
 
-TICKET_PRICE_INR = 50  
-
-# 🔹 Load Documents into Vector Store
+# Load Documents into Vector Store
 def load_texts(text_folder: str):
     documents = []
+    # Check if directory exists
+    if not os.path.exists(text_folder):
+        os.makedirs(text_folder)
+        logging.warning(f"Created empty directory {text_folder} as it did not exist")
+        return documents
+        
     for filename in os.listdir(text_folder):
         file_path = os.path.join(text_folder, filename)
         if filename.endswith(".txt"):
@@ -85,24 +94,46 @@ def load_texts(text_folder: str):
             documents.append(Document(page_content=text, metadata={"source": filename}))
     return documents
 
-text_folder = os.path.join(os.path.dirname(__file__), "data")
-docs = load_texts(text_folder)
-logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
+# Create data directory if it doesn't exist
+text_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+if not os.path.exists(text_folder):
+    os.makedirs(text_folder)
+    logging.info(f"Created data directory at {text_folder}")
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-all_splits = text_splitter.split_documents(docs)
-vector_store.add_documents(documents=all_splits)
-logging.info("Document chunks added to vector store successfully.")
+# Load documents (safely)
+try:
+    docs = load_texts(text_folder)
+    logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
 
-prompt = hub.pull("rlm/rag-prompt")
+    if docs:  # Only process if we have documents
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        all_splits = text_splitter.split_documents(docs)
+        vector_store.add_documents(documents=all_splits)
+        logging.info("Document chunks added to vector store successfully.")
+    else:
+        logging.warning("No documents found to process.")
+except Exception as e:
+    logging.error(f"Error loading documents: {str(e)}")
 
-# 🔹 Define State for RAG Model
+# Get LangChain prompt
+try:
+    prompt = hub.pull("rlm/rag-prompt")
+except Exception as e:
+    logging.error(f"Error pulling prompt from hub: {str(e)}")
+    # Fallback prompt in case hub is not available
+    from langchain_core.prompts import ChatPromptTemplate
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful assistant for a museum. Answer questions based on this context: {context}"),
+        ("human", "{question}")
+    ])
+
+# Define State for RAG Model
 class State(Dict):
     question: str
     context: List[Document]
     answer: str
 
-# 🔹 RAG Pipeline
+# RAG Pipeline
 def retrieve(state: State):
     retrieved_docs = vector_store.similarity_search(state["question"])
     return {"context": retrieved_docs}
@@ -113,11 +144,12 @@ def generate(state: State):
     response = llm.invoke(messages)
     return {"answer": response.content}
 
+# Build graph
 graph_builder = StateGraph(State).add_sequence([retrieve, generate])
 graph_builder.add_edge(START, "retrieve")
 graph = graph_builder.compile()
 
-
+# Email function
 def send_confirmation_email(email, name, tickets, date, payment_id, amount_inr):
     try:
         msg = MIMEMultipart()
@@ -144,38 +176,46 @@ def send_confirmation_email(email, name, tickets, date, payment_id, amount_inr):
         logging.error(f"Failed to send confirmation email: {str(e)}")
         return False
 
-# 🔹 Geocode Location Function
+# Geocode Location Function
 def geocode_location(location, api_key):
-    url = f"https://api.openrouteservice.org/geocode/search?api_key={api_key}&text={location}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        if data['features']:
-            coordinates = data['features'][0]['geometry']['coordinates']  # [lon, lat]
-            return coordinates
-    return None
+    try:
+        url = f"https://api.openrouteservice.org/geocode/search?api_key={api_key}&text={location}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            if data['features']:
+                coordinates = data['features'][0]['geometry']['coordinates']  # [lon, lat]
+                return coordinates
+        return None
+    except Exception as e:
+        logging.error(f"Geocoding error: {str(e)}")
+        return None
 
-# 🔹 Calculate Distance Function
+# Calculate Distance Function
 def calculate_distance(start_lon, start_lat, end_lon, end_lat, api_key):
-    url = "https://api.openrouteservice.org/v2/directions/driving-car"
-    headers = {"Authorization": api_key}
-    body = {
-        "coordinates": [[start_lon, start_lat], [end_lon, end_lat]],
-        "units": "km"
-    }
-    response = requests.post(url, json=body, headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        distance = data['routes'][0]['summary']['distance']  # Distance in kilometers
-        return distance
-    return None
+    try:
+        url = "https://api.openrouteservice.org/v2/directions/driving-car"
+        headers = {"Authorization": api_key}
+        body = {
+            "coordinates": [[start_lon, start_lat], [end_lon, end_lat]],
+            "units": "km"
+        }
+        response = requests.post(url, json=body, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            distance = data['routes'][0]['summary']['distance']  # Distance in kilometers
+            return distance
+        return None
+    except Exception as e:
+        logging.error(f"Distance calculation error: {str(e)}")
+        return None
 
-# 🔹 Route: Home
+# Route: Home
 @app.route('/')
 def home():
     return "Welcome to the Museum Ticket Booking Chatbot!"
 
-# 🔹 Route: Ask
+# Route: Ask
 @app.route('/ask', methods=['POST'])
 def ask():
     try:
@@ -273,47 +313,55 @@ def ask():
                 return jsonify({"answer": f"Confirm {tickets} tickets on {date} for {name} ({email}, {phone_number})? Total amount: ₹{amount_inr}. Type 'yes' to proceed."})
 
             elif session.get("step") == "confirm" and question == "yes":
-                payment_link = client.payment_link.create({
-                    "amount": session["amount_paise"],  # Pass amount in paise to Razorpay
-                    "currency": "INR",
-                    "accept_partial": False,
-                    "description": "Museum Ticket Booking",
-                    "customer": {
+                try:
+                    payment_link = client.payment_link.create({
+                        "amount": session["amount_paise"],  # Pass amount in paise to Razorpay
+                        "currency": "INR",
+                        "accept_partial": False,
+                        "description": "Museum Ticket Booking",
+                        "customer": {
+                            "name": session["name"],
+                            "email": session["email"],
+                            "contact": session["phone_number"]
+                        },
+                        "notify": {"sms": True, "email": True},
+                        "reminder_enable": True,
+                        "callback_url": request.url_root + "payment-callback",
+                        "callback_method": "get"
+                    })
+                    payment_id = payment_link['id']
+                    payment_url = payment_link['short_url']
+                    pending_payments[payment_id] = {
                         "name": session["name"],
                         "email": session["email"],
-                        "contact": session["phone_number"]
-                    },
-                    "notify": {"sms": True, "email": True},
-                    "reminder_enable": True,
-                    "callback_url": request.url_root + "payment-callback",
-                    "callback_method": "get"
-                })
-                payment_id = payment_link['id']
-                payment_url = payment_link['short_url']
-                pending_payments[payment_id] = {
-                    "name": session["name"],
-                    "email": session["email"],
-                    "phone_number": session["phone_number"],
-                    "tickets": session["tickets"],
-                    "date": session["date"],
-                    "amount_inr": session["amount_inr"],  # Store amount in INR
-                    "amount_paise": session["amount_paise"],  # Store amount in paise for reference
-                    "status": "pending"
-                }
-                del user_sessions[session_id]
-                return jsonify({
-                    "answer": f"Please complete your payment of ₹{session['amount_inr']} by clicking <a href='{payment_url}' target='_blank'>here</a>. You will receive a confirmation email once payment is successful."
-                })
+                        "phone_number": session["phone_number"],
+                        "tickets": session["tickets"],
+                        "date": session["date"],
+                        "amount_inr": session["amount_inr"],  # Store amount in INR
+                        "amount_paise": session["amount_paise"],  # Store amount in paise for reference
+                        "status": "pending"
+                    }
+                    del user_sessions[session_id]
+                    return jsonify({
+                        "answer": f"Please complete your payment of ₹{session['amount_inr']} by clicking <a href='{payment_url}' target='_blank'>here</a>. You will receive a confirmation email once payment is successful."
+                    })
+                except Exception as e:
+                    logging.error(f"Payment creation error: {str(e)}")
+                    return jsonify({"answer": "Unable to create payment link. Please try again later or contact support."})
 
         # RAG Response
-        response = graph.invoke({"question": question})
-        return jsonify({"answer": response["answer"]})
+        try:
+            response = graph.invoke({"question": question})
+            return jsonify({"answer": response["answer"]})
+        except Exception as e:
+            logging.error(f"RAG error: {str(e)}")
+            return jsonify({"answer": "I'm having trouble processing your question. Please try again or ask something else."})
 
     except Exception as e:
         logging.error(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# 🔹 Payment Callback Endpoint
+# Payment Callback Endpoint
 @app.route('/payment-callback', methods=['GET', 'POST'])
 def payment_callback():
     try:
@@ -378,7 +426,11 @@ def payment_callback():
         logging.error(f"Payment callback error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# 🔥 Run Flask App
+# Health check endpoint for monitoring
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(debug=False, host="0.0.0.0", port=port)
