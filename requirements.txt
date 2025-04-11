@@ -1,5 +1,7 @@
 flask
 flask-cors
+langchain
+langchain-community
 langchain-groq
 langchain-huggingface
 langchain-chroma
