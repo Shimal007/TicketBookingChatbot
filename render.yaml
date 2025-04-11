@@ -1,12 +1,17 @@
 services:
   - type: web
-    name: museum-chatbot
+    name: museum-ticket-system
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      # Install backend dependencies
+      pip install -r requirements.txt
+      cd frontend/webpage && npm install && npx vite build
     startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.0
+        value: 3.11
+      - key: PORT
+        value: 10000
       - key: SECRET_KEY
         sync: false
       - key: LANGCHAIN_API_KEY
