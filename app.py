@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, send_from_directory, send_file
 from flask_cors import CORS
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -25,9 +25,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__, static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend/webpage/build/static"))
 app.secret_key = os.getenv("SECRET_KEY", "super_secret_key")
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Configuration paths
+FRONTEND_BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend/webpage/build"))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -210,13 +213,8 @@ def calculate_distance(start_lon, start_lat, end_lon, end_lat, api_key):
         logging.error(f"Distance calculation error: {str(e)}")
         return None
 
-# Route: Home
-@app.route('/')
-def home():
-    return "Welcome to the Museum Ticket Booking Chatbot!"
-
-# Route: Ask
-@app.route('/ask', methods=['POST'])
+# API Routes
+@app.route('/api/ask', methods=['POST'])
 def ask():
     try:
         data = request.get_json()
@@ -326,7 +324,7 @@ def ask():
                         },
                         "notify": {"sms": True, "email": True},
                         "reminder_enable": True,
-                        "callback_url": request.url_root + "payment-callback",
+                        "callback_url": request.url_root + "api/payment-callback",
                         "callback_method": "get"
                     })
                     payment_id = payment_link['id']
@@ -362,7 +360,7 @@ def ask():
         return jsonify({"error": str(e)}), 500
 
 # Payment Callback Endpoint
-@app.route('/payment-callback', methods=['GET', 'POST'])
+@app.route('/api/payment-callback', methods=['GET', 'POST'])
 def payment_callback():
     try:
         payment_id = request.args.get('razorpay_payment_link_id')
@@ -427,9 +425,41 @@ def payment_callback():
         return jsonify({"error": str(e)}), 500
 
 # Health check endpoint for monitoring
-@app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
+
+# Serve React frontend - handle all static files and assets
+@app.route('/static/<path:path>')
+def serve_static(path):
+    return send_from_directory(os.path.join(FRONTEND_BUILD_DIR, 'static'), path)
+
+@app.route('/assets/<path:path>')
+def serve_assets(path):
+    return send_from_directory(os.path.join(FRONTEND_BUILD_DIR, 'assets'), path)
+
+# Serve other static files like favicon, manifest, etc.
+@app.route('/<path:filename>')
+def serve_public_files(filename):
+    # Files that might be requested directly from the public folder
+    public_files = ['favicon.ico', 'logo192.png', 'logo512.png', 'manifest.json', 'robots.txt']
+    
+    if filename in public_files and os.path.exists(os.path.join(FRONTEND_BUILD_DIR, filename)):
+        return send_from_directory(FRONTEND_BUILD_DIR, filename)
+    
+    # For all other requests, let the React app handle routing
+    return send_from_directory(FRONTEND_BUILD_DIR, 'index.html')
+
+# Root path - serve the React app
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    # Check if the path refers to a specific file
+    if path and os.path.exists(os.path.join(FRONTEND_BUILD_DIR, path)):
+        return send_from_directory(FRONTEND_BUILD_DIR, path)
+    
+    # Otherwise, serve the React app's index.html
+    return send_from_directory(FRONTEND_BUILD_DIR, 'index.html')
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
