@@ -1,0 +1,31 @@
+# render.yaml
+services:
+  - type: web
+    name: museum-chatbot-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: LANGCHAIN_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ORS_API_KEY
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_SECRET
+        sync: false
+      - key: EMAIL_USERNAME
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: "true"
+    autoDeploy: true
