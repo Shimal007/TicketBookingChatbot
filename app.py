@@ -18,16 +18,17 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pymongo import MongoClient
 import re
-from datetime import datetime  # Import datetime for timestamp
+from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
+
 app = Flask(__name__)
 app.secret_key = "super_secret_key"  # For session management
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-
 logging.basicConfig(level=logging.INFO)
 
+# Environment variables
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ORS_API_KEY = os.getenv("ORS_API_KEY")
@@ -37,38 +38,36 @@ EMAIL_USERNAME = os.getenv("EMAIL_USERNAME")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 MONGO_URI = os.getenv("MONGO_URI")
 
-
+# Set environment variables
 os.environ["LANGCHAIN_API_KEY"] = LANGCHAIN_API_KEY
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-
+# Constants
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-
-
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://shimalakmald23aim:shimal007@visitorsdata.aw8yfkt.mongodb.net/")
+MUSEUM_COORDINATES = {"lon": 80.2574, "lat": 13.0674}
+TICKET_PRICE_INR = 50
+
+# Initialize MongoDB client - This is lightweight
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client["museum_db"]
 bookings_collection = db["bookings"]
 
-
+# Initialize Razorpay client - This is lightweight
 client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
 
-
+# Initialize LLM - This is lightweight
 llm = ChatGroq(model="llama3-8b-8192")
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-vector_store = Chroma(embedding_function=embeddings)
 
+# Lazy-loaded components
+_embeddings = None
+_vector_store = None
+_graph = None
 
-MUSEUM_COORDINATES = {"lon": 80.2574, "lat": 13.0674}
-
-
+# Session storage
 user_sessions = {}
 pending_payments = {}
-
-
-TICKET_PRICE_INR = 50  
-
 
 def load_texts(text_folder: str):
     documents = []
@@ -84,39 +83,70 @@ def load_texts(text_folder: str):
             documents.append(Document(page_content=text, metadata={"source": filename}))
     return documents
 
-text_folder = os.path.join(os.path.dirname(__file__), "data")
-docs = load_texts(text_folder)
-logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
+def get_embeddings():
+    global _embeddings
+    if _embeddings is None:
+        logging.info("Initializing embeddings model...")
+        # Use a smaller model to reduce memory usage
+        _embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return _embeddings
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-all_splits = text_splitter.split_documents(docs)
-vector_store.add_documents(documents=all_splits)
-logging.info("Document chunks added to vector store successfully.")
+def get_vector_store():
+    global _vector_store
+    if _vector_store is None:
+        logging.info("Initializing vector store...")
+        _vector_store = Chroma(embedding_function=get_embeddings())
+        
+        # Load documents on demand
+        text_folder = os.path.join(os.path.dirname(__file__), "data")
+        docs = load_texts(text_folder)
+        logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
+        
+        # Use smaller chunks to reduce memory usage
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        all_splits = text_splitter.split_documents(docs)
+        
+        # Add documents in smaller batches to reduce peak memory usage
+        batch_size = 10  # Adjust based on memory constraints
+        for i in range(0, len(all_splits), batch_size):
+            batch = all_splits[i:i+batch_size]
+            _vector_store.add_documents(documents=batch)
+            logging.info(f"Added batch {i//batch_size + 1}/{(len(all_splits)-1)//batch_size + 1} to vector store")
+            
+    return _vector_store
 
-prompt = hub.pull("rlm/rag-prompt")
+def get_rag_graph():
+    global _graph
+    if _graph is None:
+        logging.info("Initializing RAG graph...")
+        # Define state class
+        class State(Dict):
+            question: str
+            context: List[Document]
+            answer: str
+        
+        # Define retrieve function
+        def retrieve(state: State):
+            retrieved_docs = get_vector_store().similarity_search(state["question"])
+            return {"context": retrieved_docs}
+        
+        # Define generate function
+        def generate(state: State):
+            docs_content = "\n\n".join(doc.page_content for doc in state["context"])
+            # Get the RAG prompt
+            prompt = hub.pull("rlm/rag-prompt")
+            messages = prompt.invoke({"question": state["question"], "context": docs_content})
+            response = llm.invoke(messages)
+            return {"answer": response.content}
+        
+        # Build graph
+        graph_builder = StateGraph(State).add_sequence([retrieve, generate])
+        graph_builder.add_edge(START, "retrieve")
+        _graph = graph_builder.compile()
+    
+    return _graph
 
-
-class State(Dict):
-    question: str
-    context: List[Document]
-    answer: str
-
-# 🔹 RAG Pipeline
-def retrieve(state: State):
-    retrieved_docs = vector_store.similarity_search(state["question"])
-    return {"context": retrieved_docs}
-
-def generate(state: State):
-    docs_content = "\n\n".join(doc.page_content for doc in state["context"])
-    messages = prompt.invoke({"question": state["question"], "context": docs_content})
-    response = llm.invoke(messages)
-    return {"answer": response.content}
-
-graph_builder = StateGraph(State).add_sequence([retrieve, generate])
-graph_builder.add_edge(START, "retrieve")
-graph = graph_builder.compile()
-
-
+# Utility functions
 def send_confirmation_email(email, name, tickets, date, payment_id, amount_inr):
     try:
         msg = MIMEMultipart()
@@ -143,7 +173,6 @@ def send_confirmation_email(email, name, tickets, date, payment_id, amount_inr):
         logging.error(f"Failed to send confirmation email: {str(e)}")
         return False
 
-# 🔹 Geocode Location Function
 def geocode_location(location, api_key):
     url = f"https://api.openrouteservice.org/geocode/search?api_key={api_key}&text={location}"
     response = requests.get(url)
@@ -168,6 +197,7 @@ def calculate_distance(start_lon, start_lat, end_lon, end_lat, api_key):
         return distance
     return None
 
+# Routes
 @app.route('/')
 def home():
     return "Welcome to the Museum Ticket Booking Chatbot!"
@@ -182,6 +212,7 @@ def ask():
         question = data["question"].strip().lower()
         session_id = request.remote_addr
         
+        # Check if this is a location/distance query
         location = None
         if "i'm near " in question or "im near " in question or "i am near " in question:
             for prefix in ["i'm near ", "im near ", "i am near "]:
@@ -214,10 +245,12 @@ def ask():
                 "answer": "To calculate the distance to the museum, please provide your location like this: 'I'm near Central Park' or 'I'm coming from Brooklyn'."
             })
         
+        # Check if this is a ticket booking query
         if "book ticket" in question:
             user_sessions[session_id] = {"step": "collect_details"}
             return jsonify({"answer": f"Provide Name, Email, Phone Number, Tickets, and Date (YYYY-MM-DD), separated by commas (e.g., Sanjay, sanjay@example.com, +919876543210, 4, 2025-03-01). Ticket price is ₹{TICKET_PRICE_INR} per ticket."})
 
+        # Handle ongoing booking session
         if session_id in user_sessions:
             session = user_sessions[session_id]
 
@@ -294,15 +327,15 @@ def ask():
                     "answer": f"Please complete your payment of ₹{session['amount_inr']} by clicking <a href='{payment_url}' target='_blank'>here</a>. You will receive a confirmation email once payment is successful."
                 })
 
-        # RAG Response
-        response = graph.invoke({"question": question})
+        # Use RAG for general questions - Only initialize components when needed
+        response = get_rag_graph().invoke({"question": question})
         return jsonify({"answer": response["answer"]})
 
     except Exception as e:
         logging.error(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# 🔹 Payment Callback Endpoint
+# Payment Callback Endpoint
 @app.route('/payment-callback', methods=['GET', 'POST'])
 def payment_callback():
     try:
@@ -367,8 +400,7 @@ def payment_callback():
         logging.error(f"Payment callback error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# 🔥 Run Flask App
+# Define correct port for Render
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=False, host="0.0.0.0", port=port)
-
+    app.run(host='0.0.0.0', port=port)
