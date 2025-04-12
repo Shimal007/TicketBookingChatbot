@@ -1,0 +1,17 @@
+flask
+flask-cors
+langchain
+langchain-community
+langchain-groq
+langchain-huggingface
+langchain-chroma
+langchain-text-splitters
+langchain-core
+langgraph
+PyPDF2
+requests
+razorpay
+pymongo
+sentence-transformers
+python-dotenv
+gunicorn
